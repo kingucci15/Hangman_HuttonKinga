@@ -1,104 +1,82 @@
-import os
+import csv
 
 
+# definim lista de vocale si consoane
 def obtine_vocale():
-    # folosim valorile ASCII pentru a genera lista de vocale
-    return [chr(i) for i in [65, 69, 73, 79, 85]]  # A, E, I, O, U
+    # retuneaza vocalele posibile
+    return ['A', 'E', 'I', 'O', 'U', 'Ă', 'Î','Â']
+
 
 def obtine_consoane():
-    # Folosim coduri ASCII pentru a genera consoanele
-    return [chr(i) for i in [78, 82, 84, 83, 76, 67, 68, 77, 80, 86, 70, 90, 66, 71, 72]]  # N, R, T, etc.
+    # returneaza consoanele posibile
+    return ['N', 'R', 'T', 'S', 'L', 'C', 'D', 'M', 'P', 'V', 'F', 'Z', 'B', 'G', 'H', 'Ș', 'Ț','J', 'X', 'K']
+#cele doua functii sunt folosite pt a verifica daca V sau C apar in cuvantul
+#pe care dorim sa ghicim, si alg incearca sa compl literele necunoscute in
+#cuvant_partial
 
-# funcție pentru incarcarea datelor despre cuvinte dintr-un fisier text
-def preia_cuvintele(fisier_de_intrare):
-    lista_de_cuvinte = []
+# fct principala care incearca sa completeze cuvantul
+def completare_cuvant_optimizat(cuvant_partial, cuvant_complet):
+    incercari = 0
+    cuvant_actual = list(cuvant_partial)  # convertim in lista pt a putea modif individual literele
+    litere_ghicite = set(cuvant_partial.replace('*', '').upper())
+    # set care retine literele ghicite deja ca sa nu reptam incercarile
 
-    # deschidem si citim fisierul linie cu linie
-    with open(fisier_de_intrare, 'r', encoding='utf-8') as f:
-        for linie in f:
-            # eliminam spatiile goale si impartim linia pe baza separatorului ';'
-            parti = linie.strip().split(';')
-            cod, vizibil, intreg = parti
-            # aslvam datele cuvantului sub forma unui dictionar
-            lista_de_cuvinte.append({'cod': cod, 'vizibil': vizibil, 'intreg': intreg})
+    # incearca ghicirea vocalelor
+    for litera in obtine_vocale():
+        if litera not in litere_ghicite:
+            for i in range(len(cuvant_complet)):
+                if cuvant_complet[i].upper() == litera and cuvant_partial[i] == '*':
+                    cuvant_actual[i] = litera
+                    litere_ghicite.add(litera)
+                    incercari += 1
+#daca vocala curenta nu a fost ghicita deja, funct verifica fiecare poz din
+#cuvant_complet
+#daca litera din poz resp este vocala curenta si pozitia in cuvant_partial este
+#inca * atunci vocala este completata in cuvant_actual
+#actualizam setul litere_ghicite cu vocala curenta + contorul de incercari
+    # incearca ghicirea consoanelor
+    for litera in obtine_consoane():
+        if litera not in litere_ghicite:
+            for i in range(len(cuvant_complet)):
+                if cuvant_complet[i].upper() == litera and cuvant_partial[i] == '*':
+                    cuvant_actual[i] = litera
+                    litere_ghicite.add(litera)
+                    incercari += 1
 
-    return lista_de_cuvinte
 
-# functie pentru verificarea daca sa ignoram o anumita pozitie
-def trebuie_ignorata_pozitia(index, tip_litera):
-    if tip_litera == 'vocala':
-        return index % 2 == 0  # ignoram pozitiile pare pentru vocale
-    elif tip_litera == 'consoana':
-        return index % 3 == 0  # ignoram pozitiile divizibile cu 3 pentru consoane
-    return False  # implicit, nu ignoram alte tipuri de litere
+    return ''.join(cuvant_actual), incercari
 
-# functie care incearca sa completeze cuvantul ascuns
-def ghiceste_cuvantul(cuvant_partial, cuvant_complet):
-    vocale = obtine_vocale()  # obtinem lista de vocale folosind functia
-    consoane = obtine_consoane()  # obtinem lista de consoane folosind functia
 
-    numar_incercari = 0  # contor pentru numarul total de incercari
-    cuvant_curent = list(cuvant_partial)  # convertim cuvantul partial intr-o lista de caractere
-    litere_gasite = set()  # set pentru a stoca literele deja ghicite
+# fct princ ce gestioneaza jocul, filename duce catre fisier din care citim
+def run_hangman(filename):
+    total_incercari = 0
+    cuvinte = []
+    #fiecare rand este citit si stocat intro lista de dictionare cuvinte
 
-    # incercam sa ghicim vocalele in interiorul cuvantului
-    for vocala in vocale:
-        if vocala not in litere_gasite:
-            for i in range(1, len(cuvant_complet) - 1):
-                if cuvant_complet[i].upper() == vocala and cuvant_partial[i] == '*':
-                    if trebuie_ignorata_pozitia(i, 'vocala'):
-                        continue
-                    cuvant_curent[i] = vocala
-                    litere_gasite.add(vocala)
-                    numar_incercari += 1  # creștem contorul de incercari
+    with open(filename, 'r', encoding='utf-8') as file:
+        reader = csv.reader(file, delimiter=';')
+        for row in reader:
+            cod, partial, complet = row
+            cuvinte.append({'cod': cod, 'partial': partial, 'complet': complet})
 
-    # incercam sa ghicim consoanele, dar folosim aceeasi functie pentru ignorarea pozitiilor
-    for consoana in consoane:
-        if consoana not in litere_gasite:
-            for i in range(1, len(cuvant_complet) - 1):
-                if cuvant_complet[i].upper() == consoana and cuvant_partial[i] == '*':
-                    if trebuie_ignorata_pozitia(i, 'consoana'):
-                        continue
-                    cuvant_curent[i] = consoana
-                    litere_gasite.add(consoana)
-                    numar_incercari += 1
+    # ficare cuvant din lista cuvinte este procesat
+    # se extrag valori pt cod partial complet
+    # apelam completare_cuvant_optimizat pt a obt cuvantul compl si numarul de inc
+    # se aduna la total si afisam rezultatul
+    for cuvant in cuvinte:
+        cod = cuvant['cod']
+        partial = cuvant['partial']
+        complet = cuvant['complet']
+        cuvant_ghicit, incercari = completare_cuvant_optimizat(partial, complet)
+        total_incercari += incercari
+        print(f"Jocul: {cod}, Am ghicit: {cuvant_ghicit}, Încercări: {incercari}")
 
-    # inlocuim toate caracterele ascunse ramase (stelutele) cu literele corecte
-    for i in range(len(cuvant_curent)):
-        if cuvant_curent[i] == '*':
-            cuvant_curent[i] = cuvant_complet[i].upper()
-
-    # Returnam cuvantul completat si numarul de incercari
-    return ''.join(cuvant_curent), numar_incercari
-
-# Functia principala
-def incepe_ghicirea():
-    # incercam datele despre cuvinte din fisierul cu cuvinte de verificat
-    cuvinte_de_jucat = preia_cuvintele('cuvinte_de_verificat.txt')
-    incercari_totale = 0  # variabila pentru numarul total de incercari
-
-    print("-Ghicirea cuvintelor a inceput!-")
-
-    for joc in cuvinte_de_jucat:
-        cuvant_final, incercari = ghiceste_cuvantul(joc['vizibil'], joc['intreg'])
-        incercari_totale += incercari  # adaugam incercarile pentru acest cuvant la total
-
-        # afisam rezultatele într-un format mai descriptiv si detaliat
-        print("--------------------------------------------")
-        print(f"Cod joc: {joc['cod']}")
-        print(f"Cuvant completat: {cuvant_final}")
-        print(f"Numar de incercari efectuate: {incercari}")
-        print("--------------------------------------------")
-
-    # La final, afisam raportul cu rezultatele globale
-    print("-Raport Jocului Hangman- ")
-    print(f"Total incercari pentru toate cuvintele: {incercari_totale}")
-
-    if incercari_totale > 1200:
-        print("Avertisment: ati depașit limita de 1200 de încercari!")
+    print(f"Rezultatul de încercări: {total_incercari}")
+    if total_incercari > 1200:
+        print("Numărul de încercări a depășit limita de 1200.")
     else:
-        print("Succes! Toate cuvintele au fost ghicite in mai putin de 1200 incercari.")
+        print("Toate cuvintele au fost găsite cu succes sub limita de 1200 încercări!")
 
-# pornim programul daca este rulat direct
-if __name__ == "__main__":
-    incepe_ghicirea()
+
+filename = 'cuvinte_de_verificat.txt' 
+run_hangman(filename)
